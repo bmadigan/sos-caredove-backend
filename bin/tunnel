@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+# Start an Expose tunnel for local Slack webhook development.
+#
+# Usage:
+#   bin/tunnel
+#
+# Before first use:
+#   1. Set EXPOSE_SUBDOMAIN in .env (default: caredove-sos)
+#   2. Update APP_URL in .env to the tunnel URL:
+#      APP_URL=https://<subdomain>.sharedwithexpose.com
+#   3. In your Slack app settings (api.slack.com/apps), set:
+#      - Slash command URL:    https://<subdomain>.sharedwithexpose.com/api/slack/sos
+#      - Interactivity URL:    https://<subdomain>.sharedwithexpose.com/api/slack/interact
+#      - OAuth redirect URL:   https://<subdomain>.sharedwithexpose.com/api/slack/oauth/callback
+#
+
+set -e
+
+# Load EXPOSE_SUBDOMAIN from .env if present
+if [ -f "$(dirname "$0")/../.env" ]; then
+    SUBDOMAIN=$(grep -E '^EXPOSE_SUBDOMAIN=' "$(dirname "$0")/../.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+fi
+
+SUBDOMAIN="${SUBDOMAIN:-caredove-sos}"
+LOCAL_URL="http://sos-backend.test"
+TUNNEL_URL="https://${SUBDOMAIN}.sharedwithexpose.com"
+
+echo ""
+echo "  Starting Expose tunnel..."
+echo ""
+echo "  Local:   ${LOCAL_URL}"
+echo "  Tunnel:  ${TUNNEL_URL}"
+echo ""
+echo "  Make sure .env has:"
+echo "    APP_URL=${TUNNEL_URL}"
+echo ""
+
+expose share "${LOCAL_URL}" --subdomain="${SUBDOMAIN}"
