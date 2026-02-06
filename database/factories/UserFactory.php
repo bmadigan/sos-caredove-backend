@@ -56,4 +56,14 @@ class UserFactory extends Factory
             'two_factor_confirmed_at' => now(),
         ]);
     }
+
+    /**
+     * Associate the user with a new team.
+     */
+    public function withTeam(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'team_id' => \App\Models\Team::factory(),
+        ]);
+    }
 }
