@@ -26,3 +26,5 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+/firebase-credentials.json
+/storage/firebase-credentials.json
