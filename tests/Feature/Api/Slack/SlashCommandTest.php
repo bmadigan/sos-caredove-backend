@@ -3,7 +3,6 @@
 use App\Models\DeviceToken;
 use App\Models\Team;
 use App\Models\User;
-use App\Services\FCMService;
 use App\Services\SlackService;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -13,9 +12,6 @@ beforeEach(function () {
     $this->team = Team::factory()->withSlack()->create();
     $this->user = User::factory()->create(['team_id' => $this->team->id]);
     DeviceToken::factory()->create(['user_id' => $this->user->id]);
-
-    // Mock FCMService to prevent Firebase credential resolution
-    $this->mock(FCMService::class);
 });
 
 function postSlackSos(mixed $testCase, array $params): \Illuminate\Testing\TestResponse

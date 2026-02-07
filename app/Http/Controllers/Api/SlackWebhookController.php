@@ -17,7 +17,6 @@ class SlackWebhookController extends Controller
 {
     public function __construct(
         protected SlackService $slackService,
-        protected FCMService $fcmService,
     ) {}
 
     /**
@@ -139,7 +138,8 @@ class SlackWebhookController extends Controller
 
         // Dispatch FCM notifications
         $deviceTokens = DeviceToken::whereIn('user_id', $selectedRecipientIds)->get();
-        $this->fcmService->sendSosAlert($deviceTokens, $slackUserName);
+        $fcmService = app(FCMService::class);
+        $fcmService->sendSosAlert($deviceTokens, $slackUserName);
 
         // Return confirmation modal
         $confirmationModal = $this->slackService->buildConfirmationModal(count($selectedRecipientIds));

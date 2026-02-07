@@ -8,11 +8,11 @@
 # Before first use:
 #   1. Set EXPOSE_SUBDOMAIN in .env (default: caredove-sos)
 #   2. Update APP_URL in .env to the tunnel URL:
-#      APP_URL=https://<subdomain>.sharedwithexpose.com
+#      APP_URL=https://<subdomain>.<server>.sharedwithexpose.com
 #   3. In your Slack app settings (api.slack.com/apps), set:
-#      - Slash command URL:    https://<subdomain>.sharedwithexpose.com/api/slack/sos
-#      - Interactivity URL:    https://<subdomain>.sharedwithexpose.com/api/slack/interact
-#      - OAuth redirect URL:   https://<subdomain>.sharedwithexpose.com/api/slack/oauth/callback
+#      - Slash command URL:    https://<subdomain>.<server>.sharedwithexpose.com/api/slack/sos
+#      - Interactivity URL:    https://<subdomain>.<server>.sharedwithexpose.com/api/slack/interact
+#      - OAuth redirect URL:   https://<subdomain>.<server>.sharedwithexpose.com/api/slack/oauth/callback
 #
 
 set -e
@@ -23,8 +23,26 @@ if [ -f "$(dirname "$0")/../.env" ]; then
 fi
 
 SUBDOMAIN="${SUBDOMAIN:-caredove-sos}"
-LOCAL_URL="http://sos-backend.test"
-TUNNEL_URL="https://${SUBDOMAIN}.sharedwithexpose.com"
+
+# Read default_server from Expose config
+EXPOSE_CONFIG="$HOME/.expose/config.php"
+if [ -f "$EXPOSE_CONFIG" ]; then
+    SERVER=$(php -r "\$c = include '$EXPOSE_CONFIG'; echo \$c['default_server'] ?? '';" 2>/dev/null)
+fi
+
+SERVER="${SERVER:-us-1}"
+
+SITE_NAME="sos-backend"
+LOCAL_URL="http://${SITE_NAME}.test"
+TUNNEL_URL="https://${SUBDOMAIN}.${SERVER}.sharedwithexpose.com"
+
+# Herd's HTTPS causes redirect loops with Expose, so temporarily unsecure
+echo ""
+echo "  Unsecuring ${SITE_NAME}.test for tunneling..."
+herd unsecure "${SITE_NAME}" 2>/dev/null || true
+
+# Re-secure when the tunnel stops
+trap 'echo ""; echo "  Re-securing ${SITE_NAME}.test..."; herd secure "${SITE_NAME}" 2>/dev/null || true' EXIT
 
 echo ""
 echo "  Starting Expose tunnel..."

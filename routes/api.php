@@ -10,7 +10,7 @@ use App\Http\Middleware\EnsureTeamIsActive;
 use App\Http\Middleware\VerifySlackSignature;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->middleware('sanctum.stateful')->group(function () {
     // Public auth routes
     Route::post('auth/register', [AuthController::class, 'register']);
     Route::post('auth/login', [AuthController::class, 'login']);
