@@ -77,13 +77,20 @@ class FirebaseDiagnostic extends Command
             return self::FAILURE;
         }
 
-        // 4. Send test if token provided
+        // 4. Get FCM token (from option or database)
         $fcmToken = $this->option('token');
         if (! $fcmToken) {
-            $this->newLine();
-            $this->line('Tip: pass --token=<FCM_TOKEN> to send a test notification');
+            $deviceToken = \App\Models\DeviceToken::first();
+            if (! $deviceToken) {
+                $this->newLine();
+                $this->error('No device tokens in database. Register a device first.');
 
-            return self::SUCCESS;
+                return self::FAILURE;
+            }
+            $fcmToken = $deviceToken->token;
+            $this->newLine();
+            $this->line("Using device token from DB: {$deviceToken->platform} — ".substr($fcmToken, 0, 20).'...');
+            $this->line('Full token length: '.strlen($fcmToken).' chars');
         }
 
         // 4a. Direct HTTP send (bypasses kreait SDK)
