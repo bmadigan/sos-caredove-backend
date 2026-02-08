@@ -17,9 +17,9 @@ class SosController extends Controller
         $user = $request->user();
         $teamId = $user->team_id;
 
-        // Rate limit: 2 alerts per team per hour
+        // Rate limit: 5 alerts per team per hour
         $rateLimitKey = 'sos-alert:'.$teamId;
-        if (RateLimiter::tooManyAttempts($rateLimitKey, 2)) {
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 5)) {
             $seconds = RateLimiter::availableIn($rateLimitKey);
             $minutes = (int) ceil($seconds / 60);
 
@@ -48,13 +48,15 @@ class SosController extends Controller
             'recipient_ids' => $validRecipientIds,
         ]);
 
-        // Hit rate limiter
-        RateLimiter::hit($rateLimitKey, 3600);
-
         // Send FCM notifications
         $deviceTokens = DeviceToken::whereIn('user_id', $validRecipientIds)->get();
         $fcmService = app(FCMService::class);
-        $fcmService->sendSosAlert($deviceTokens, $user->name);
+        $result = $fcmService->sendSosAlert($deviceTokens, $user->name);
+
+        // Only count against rate limit if at least one notification was sent
+        if ($result['success'] > 0) {
+            RateLimiter::hit($rateLimitKey, 3600);
+        }
 
         return back()->with('success', 'SOS alert sent to '.count($validRecipientIds).' recipient(s).');
     }

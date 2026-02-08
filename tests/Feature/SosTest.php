@@ -60,8 +60,9 @@ it('rejects recipients from other teams', function () {
 });
 
 it('enforces rate limiting', function () {
-    RateLimiter::hit('sos-alert:'.$this->team->id, 3600);
-    RateLimiter::hit('sos-alert:'.$this->team->id, 3600);
+    for ($i = 0; $i < 5; $i++) {
+        RateLimiter::hit('sos-alert:'.$this->team->id, 3600);
+    }
 
     $this->actingAs($this->user)
         ->post(route('sos.store'), [
