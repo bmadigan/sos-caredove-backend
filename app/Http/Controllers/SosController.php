@@ -17,9 +17,9 @@ class SosController extends Controller
         $user = $request->user();
         $teamId = $user->team_id;
 
-        // Rate limit: 5 alerts per team per hour
+        // Rate limit: 25 alerts per team per hour
         $rateLimitKey = 'sos-alert:'.$teamId;
-        if (RateLimiter::tooManyAttempts($rateLimitKey, 5)) {
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 25)) {
             $seconds = RateLimiter::availableIn($rateLimitKey);
             $minutes = (int) ceil($seconds / 60);
 

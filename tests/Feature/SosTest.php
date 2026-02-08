@@ -60,7 +60,7 @@ it('rejects recipients from other teams', function () {
 });
 
 it('enforces rate limiting', function () {
-    for ($i = 0; $i < 5; $i++) {
+    for ($i = 0; $i < 25; $i++) {
         RateLimiter::hit('sos-alert:'.$this->team->id, 3600);
     }
 
