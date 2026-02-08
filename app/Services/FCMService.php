@@ -76,10 +76,14 @@ class FCMService
 
         foreach ($report->failures()->getItems() as $failure) {
             $error = $failure->error();
+            $failedToken = $failure->target()->value();
+
+            Log::warning('FCM send failed', [
+                'token_prefix' => substr($failedToken, 0, 20).'...',
+                'error' => $error?->getMessage(),
+            ]);
 
             if ($error && in_array($error->getMessage(), ['NOT_FOUND', 'UNREGISTERED', 'INVALID_ARGUMENT'])) {
-                $failedToken = $failure->target()->value();
-
                 if (isset($tokensByValue[$failedToken])) {
                     $tokensByValue[$failedToken]->delete();
 

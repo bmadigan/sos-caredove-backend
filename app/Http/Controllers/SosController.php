@@ -8,6 +8,7 @@ use App\Models\SosAlert;
 use App\Models\User;
 use App\Services\FCMService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 
 class SosController extends Controller
@@ -50,8 +51,21 @@ class SosController extends Controller
 
         // Send FCM notifications
         $deviceTokens = DeviceToken::whereIn('user_id', $validRecipientIds)->get();
+
+        Log::info('SOS: sending FCM notifications', [
+            'sender' => $user->name,
+            'recipient_count' => count($validRecipientIds),
+            'device_token_count' => $deviceTokens->count(),
+            'tokens' => $deviceTokens->map(fn ($dt) => [
+                'platform' => $dt->platform,
+                'token_prefix' => substr($dt->token, 0, 20).'...',
+            ]),
+        ]);
+
         $fcmService = app(FCMService::class);
         $result = $fcmService->sendSosAlert($deviceTokens, $user->name);
+
+        Log::info('SOS: FCM result', $result);
 
         // Only count against rate limit if at least one notification was sent
         if ($result['success'] > 0) {
