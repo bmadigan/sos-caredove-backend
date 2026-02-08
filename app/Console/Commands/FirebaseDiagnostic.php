@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Http;
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
@@ -21,22 +22,20 @@ class FirebaseDiagnostic extends Command
         $credentialsPath = config('firebase.projects.app.credentials');
         $this->line("Credentials config: {$credentialsPath}");
 
-        if (is_string($credentialsPath) && file_exists(base_path($credentialsPath))) {
-            $json = json_decode(file_get_contents(base_path($credentialsPath)), true);
-            $this->info('File exists: YES');
-            $this->line('  project_id: '.($json['project_id'] ?? 'MISSING'));
-            $this->line('  client_email: '.($json['client_email'] ?? 'MISSING'));
-            $this->line('  private_key_id: '.($json['private_key_id'] ?? 'MISSING'));
-            $this->line('  private_key starts with: '.substr($json['private_key'] ?? '', 0, 30).'...');
-        } elseif (is_string($credentialsPath)) {
-            $this->error('File NOT found at: '.base_path($credentialsPath));
-
-            return self::FAILURE;
-        } else {
-            $this->error('Credentials not configured');
+        if (! is_string($credentialsPath) || ! file_exists(base_path($credentialsPath))) {
+            $this->error(is_string($credentialsPath)
+                ? 'File NOT found at: '.base_path($credentialsPath)
+                : 'Credentials not configured');
 
             return self::FAILURE;
         }
+
+        $json = json_decode(file_get_contents(base_path($credentialsPath)), true);
+        $projectId = $json['project_id'] ?? 'MISSING';
+        $this->info('File exists: YES');
+        $this->line("  project_id: {$projectId}");
+        $this->line('  client_email: '.($json['client_email'] ?? 'MISSING'));
+        $this->line('  private_key_id: '.($json['private_key_id'] ?? 'MISSING'));
 
         // 2. Test OAuth2 token generation
         $this->newLine();
@@ -45,24 +44,22 @@ class FirebaseDiagnostic extends Command
         try {
             $credentials = new \Google\Auth\Credentials\ServiceAccountCredentials(
                 ['https://www.googleapis.com/auth/firebase.messaging'],
-                json_decode(file_get_contents(base_path($credentialsPath)), true)
+                $json,
             );
 
-            $token = $credentials->fetchAuthToken();
+            $authToken = $credentials->fetchAuthToken();
 
-            if (! empty($token['access_token'])) {
-                $this->info('OAuth2 token generated successfully!');
-                $this->line('  Token prefix: '.substr($token['access_token'], 0, 30).'...');
-                $this->line('  Expires in: '.($token['expires_in'] ?? 'unknown').' seconds');
-            } else {
+            if (empty($authToken['access_token'])) {
                 $this->error('OAuth2 token generation returned empty token');
-                $this->line('  Response: '.json_encode($token));
 
                 return self::FAILURE;
             }
+
+            $accessToken = $authToken['access_token'];
+            $this->info('OAuth2 token generated successfully!');
+            $this->line('  Token prefix: '.substr($accessToken, 0, 30).'...');
         } catch (\Throwable $e) {
-            $this->error('OAuth2 token generation FAILED: '.$e->getMessage());
-            $this->line('  Class: '.get_class($e));
+            $this->error('OAuth2 FAILED: '.$e->getMessage());
 
             return self::FAILURE;
         }
@@ -80,33 +77,62 @@ class FirebaseDiagnostic extends Command
             return self::FAILURE;
         }
 
-        // 4. Optionally send a test message
+        // 4. Send test if token provided
         $fcmToken = $this->option('token');
-        if ($fcmToken) {
-            $this->newLine();
-            $this->info('Sending test notification to: '.substr($fcmToken, 0, 20).'...');
-
-            try {
-                $message = CloudMessage::withTarget('token', $fcmToken)
-                    ->withNotification(Notification::create(
-                        title: 'Firebase Test',
-                        body: 'If you see this, FCM is working!',
-                    ));
-
-                $result = $messaging->send($message);
-                $this->info('Send succeeded! Response: '.json_encode($result));
-            } catch (\Throwable $e) {
-                $this->error('Send FAILED: '.$e->getMessage());
-                $this->line('  Class: '.get_class($e));
-
-                if ($previous = $e->getPrevious()) {
-                    $this->line('  Caused by: '.$previous->getMessage());
-                    $this->line('  Caused by class: '.get_class($previous));
-                }
-            }
-        } else {
+        if (! $fcmToken) {
             $this->newLine();
             $this->line('Tip: pass --token=<FCM_TOKEN> to send a test notification');
+
+            return self::SUCCESS;
+        }
+
+        // 4a. Direct HTTP send (bypasses kreait SDK)
+        $this->newLine();
+        $this->info('=== Test A: Direct HTTP to FCM API ===');
+        $this->line('Sending to: '.substr($fcmToken, 0, 20).'...');
+
+        $url = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
+        $this->line("URL: {$url}");
+
+        $response = Http::withToken($accessToken)
+            ->post($url, [
+                'message' => [
+                    'token' => $fcmToken,
+                    'notification' => [
+                        'title' => 'Direct HTTP Test',
+                        'body' => 'Sent directly via HTTP, bypassing kreait SDK',
+                    ],
+                ],
+            ]);
+
+        if ($response->successful()) {
+            $this->info('DIRECT HTTP: SUCCESS!');
+            $this->line('  Response: '.$response->body());
+        } else {
+            $this->error('DIRECT HTTP: FAILED ('.$response->status().')');
+            $this->line('  Response: '.$response->body());
+        }
+
+        // 4b. kreait SDK send
+        $this->newLine();
+        $this->info('=== Test B: kreait SDK send ===');
+
+        try {
+            $message = CloudMessage::withTarget('token', $fcmToken)
+                ->withNotification(Notification::create(
+                    title: 'SDK Test',
+                    body: 'Sent via kreait SDK',
+                ));
+
+            $result = $messaging->send($message);
+            $this->info('SDK: SUCCESS!');
+            $this->line('  Response: '.json_encode($result));
+        } catch (\Throwable $e) {
+            $this->error('SDK: FAILED — '.$e->getMessage());
+
+            if ($previous = $e->getPrevious()) {
+                $this->line('  Caused by: '.$previous->getMessage());
+            }
         }
 
         return self::SUCCESS;
