@@ -50,7 +50,19 @@ return [
              *
              */
 
-            'credentials' => env('FIREBASE_CREDENTIALS', env('GOOGLE_APPLICATION_CREDENTIALS')),
+            'credentials' => (function () {
+                $creds = env('FIREBASE_CREDENTIALS', env('GOOGLE_APPLICATION_CREDENTIALS'));
+
+                if ($creds && ! str_starts_with($creds, '{') && ! str_contains($creds, '/')) {
+                    $decoded = base64_decode($creds, true);
+
+                    if ($decoded && str_starts_with($decoded, '{')) {
+                        return $decoded;
+                    }
+                }
+
+                return $creds;
+            })(),
 
             /*
              * ------------------------------------------------------------------------

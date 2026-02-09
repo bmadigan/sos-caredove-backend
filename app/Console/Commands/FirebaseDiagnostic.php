@@ -19,18 +19,36 @@ class FirebaseDiagnostic extends Command
         $this->info('=== Firebase Diagnostic ===');
 
         // 1. Check credentials config
-        $credentialsPath = config('firebase.projects.app.credentials');
-        $this->line("Credentials config: {$credentialsPath}");
+        $credentials = config('firebase.projects.app.credentials');
 
-        if (! is_string($credentialsPath) || ! file_exists(base_path($credentialsPath))) {
-            $this->error(is_string($credentialsPath)
-                ? 'File NOT found at: '.base_path($credentialsPath)
-                : 'Credentials not configured');
+        if (! is_string($credentials) || empty($credentials)) {
+            $this->error('Credentials not configured');
 
             return self::FAILURE;
         }
 
-        $json = json_decode(file_get_contents(base_path($credentialsPath)), true);
+        // Detect format: JSON string (raw or decoded from base64) vs file path
+        if (str_starts_with($credentials, '{')) {
+            $this->info('Credentials format: JSON string (inline or base64-decoded)');
+            $json = json_decode($credentials, true);
+
+            if (! $json) {
+                $this->error('Invalid JSON in credentials');
+
+                return self::FAILURE;
+            }
+        } else {
+            $this->info("Credentials format: file path — {$credentials}");
+            $fullPath = str_starts_with($credentials, '/') ? $credentials : base_path($credentials);
+
+            if (! file_exists($fullPath)) {
+                $this->error("File NOT found at: {$fullPath}");
+
+                return self::FAILURE;
+            }
+
+            $json = json_decode(file_get_contents($fullPath), true);
+        }
         $projectId = $json['project_id'] ?? 'MISSING';
         $this->info('File exists: YES');
         $this->line("  project_id: {$projectId}");
